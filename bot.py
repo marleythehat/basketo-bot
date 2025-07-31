@@ -243,6 +243,7 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total = sum(price for _, _, price in items)
     summary = f"🧾 Order ID: {order_id}\n👤 {name}\n📞 [ {phone}](tel:{phone})\n📍 {address}\n💰 Payment: {payment}\n\n🛒 Items:\n"
     for item, qty, price in items:
+     summary += f"\n📞 [Click to Call](tel:{phone})"
      summary += f"- {item} ({qty}) ₹{price}\n"
     summary += f"\n*Total:* ₹{total}"
 
