@@ -25,7 +25,7 @@ staff_index = 0
 with open("items.json", "r", encoding="utf-8") as f:
     categories = json.load(f)
 
-MAIN_MENU, CATEGORY, ITEM, QUANTITY, CHECKOUT_NAME, CHECKOUT_ADDRESS, CHECKOUT_PHONE, CHECKOUT_PAYMENT = range(8)
+MAIN_MENU, CATEGORY, ITEM, QUANTITY, CHECKOUT_NAME, CHECKOUT_ADDRESS, CHECKOUT_PHONE, CHECKOUT_PAYMENT, REMOVE_ITEM = range(9)
 
 def get_main_menu():
     return ReplyKeyboardMarkup([
@@ -87,6 +87,9 @@ async def handle_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == "✅ Checkout":
         return await checkout(update, context)
+    
+    if text == "🗑 Remove Items":
+        return await remove_item_prompt(update, context)
 
     if text not in categories:
         await update.message.reply_text("❌ Invalid category.")
@@ -143,6 +146,37 @@ async def handle_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_cart[update.effective_chat.id].append((item, quantity, price))
     await update.message.reply_text(f"✅ {item} ({quantity}) added to cart.", reply_markup=get_category_menu())
     return CATEGORY
+async def remove_item_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    cart = user_cart.get(chat_id, [])
+    
+    if not cart:
+        await update.message.reply_text("🛒 Your cart is empty.")
+        return CATEGORY
+
+    buttons = [[f"{item} ({qty}) ₹{price}"] for item, qty, price in cart]
+    buttons.append(["🔙 Cancel"])
+    await update.message.reply_text("Select an item to remove:", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
+    return REMOVE_ITEM
+
+async def handle_remove_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    text = update.message.text
+
+    if text == "🔙 Cancel":
+        return await handle_view_cart(update, context)
+
+    cart = user_cart.get(chat_id, [])
+    for i, (item, qty, price) in enumerate(cart):
+        if text.startswith(f"{item} ({qty}) ₹{price}"):
+            del cart[i]
+            user_cart[chat_id] = cart
+            await update.message.reply_text(f"❌ Removed {item} ({qty}) from your cart.")
+            break
+    else:
+        await update.message.reply_text("❌ Item not found in cart.")
+    
+    return await handle_view_cart(update, context)
 
 async def checkout(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📝 Please enter your name:", reply_markup=ReplyKeyboardRemove())
@@ -206,6 +240,7 @@ if __name__ == "__main__":
             CHECKOUT_ADDRESS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_address)],
             CHECKOUT_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_phone)],
             CHECKOUT_PAYMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_payment)],
+            REMOVE_ITEM: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_remove_item)],
         },
         fallbacks=[CommandHandler("checkout", checkout)]
     )
