@@ -194,14 +194,31 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_address(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["address"] = update.message.text
-    await update.message.reply_text("📞 Enter your phone number:")
+    await update.message.reply_text(
+    "📞 Please share your phone number by tapping the button below:",
+    reply_markup=ReplyKeyboardMarkup(
+        [[KeyboardButton("📱 Share Contact", request_contact=True)]],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+)
     return CHECKOUT_PHONE
 
 async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["phone"] = update.message.text
-    await update.message.reply_text("💰 Select payment method:",
-        reply_markup=ReplyKeyboardMarkup([["PayNow", "COD"]], resize_keyboard=True))
-    return CHECKOUT_PAYMENT
+    if update.message.contact:
+        phone = update.message.contact.phone_number
+        context.user_data["phone"] = phone
+        await update.message.reply_text(
+            "💰 Select payment method:",
+            reply_markup=ReplyKeyboardMarkup([["PayNow", "COD"]], resize_keyboard=True)
+        )
+        return CHECKOUT_PAYMENT
+    else:
+        await update.message.reply_text(
+            "⚠️ Please *tap the button* to share your contact number using the prompt below.",
+            parse_mode="Markdown"
+        )
+        return CHECKOUT_PHONE
 
 async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global order_counter, staff_index
