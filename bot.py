@@ -270,8 +270,10 @@ if __name__ == "__main__":
         QUANTITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_quantity)],
         CHECKOUT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
         CHECKOUT_ADDRESS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_address)],
-        CHECKOUT_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_phone)],
-        CHECKOUT_PAYMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_payment)],
+        CHECKOUT_PHONE: [
+    MessageHandler(filters.CONTACT, get_phone),
+    MessageHandler(filters.TEXT & ~filters.COMMAND, get_phone)  # this will warn user to use the button
+],      CHECKOUT_PAYMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_payment)],
         REMOVE_ITEM: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_remove_item)],
     },
     fallbacks=[
