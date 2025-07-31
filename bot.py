@@ -37,7 +37,8 @@ def get_category_menu():
     btns = [
         list(categories.keys())[0:2],
         list(categories.keys())[2:4],
-        [list(categories.keys())[4], "🛒 View Cart", "🔙 Back"]
+        [list(categories.keys())[4], "🛒 View Cart"],
+        ["🔙 Back"]
     ]
     return ReplyKeyboardMarkup(btns, resize_keyboard=True)
 
@@ -113,10 +114,13 @@ async def handle_view_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
             total += price
         msg += f"\n*Total:* ₹{total}"
         await update.message.reply_text(
-            msg,
-            parse_mode="Markdown",
-            reply_markup=ReplyKeyboardMarkup([["✅ Checkout", "🔙 Back"]], resize_keyboard=True)
-        )
+    msg,
+    parse_mode="Markdown",
+    reply_markup=ReplyKeyboardMarkup([
+        ["✅ Checkout"],
+        ["🗑 Remove Items", "🔙 Back"]
+    ], resize_keyboard=True)
+)
     return CATEGORY
 
 async def handle_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -146,6 +150,7 @@ async def handle_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_cart[update.effective_chat.id].append((item, quantity, price))
     await update.message.reply_text(f"✅ {item} ({quantity}) added to cart.", reply_markup=get_category_menu())
     return CATEGORY
+
 async def remove_item_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     cart = user_cart.get(chat_id, [])
@@ -195,12 +200,22 @@ async def get_address(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["phone"] = update.message.text
     await update.message.reply_text("💰 Select payment method:",
-        reply_markup=ReplyKeyboardMarkup([["Paid", "COD"]], resize_keyboard=True))
+        reply_markup=ReplyKeyboardMarkup([["PayNow", "COD"]], resize_keyboard=True))
     return CHECKOUT_PAYMENT
 
 async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global order_counter, staff_index
     payment = update.message.text
+
+    # 👇 Check for "PayNow" and block it
+    if payment == "PayNow":
+        await update.message.reply_text(
+            "❌ We're not accepting online payments right now.\n\nPlease choose *COD* to continue.",
+            parse_mode="Markdown",
+            reply_markup=ReplyKeyboardMarkup([["COD"]], resize_keyboard=True)
+        )
+        return CHECKOUT_PAYMENT
+
     name = context.user_data["name"]
     address = context.user_data["address"]
     phone = context.user_data["phone"]
@@ -230,21 +245,23 @@ if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     conv = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
-        states={
-            MAIN_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_main_menu)],
-            CATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_category)],
-            ITEM: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_item)],
-            QUANTITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_quantity)],
-            CHECKOUT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
-            CHECKOUT_ADDRESS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_address)],
-            CHECKOUT_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_phone)],
-            CHECKOUT_PAYMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_payment)],
-            REMOVE_ITEM: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_remove_item)],
-        },
-        fallbacks=[CommandHandler("checkout", checkout)]
-    )
-
+    entry_points=[CommandHandler("start", start)],
+    states={
+        MAIN_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_main_menu)],
+        CATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_category)],
+        ITEM: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_item)],
+        QUANTITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_quantity)],
+        CHECKOUT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
+        CHECKOUT_ADDRESS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_address)],
+        CHECKOUT_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_phone)],
+        CHECKOUT_PAYMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_payment)],
+        REMOVE_ITEM: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_remove_item)],
+    },
+    fallbacks=[
+        CommandHandler("start", start),
+        CommandHandler("checkout", checkout)
+    ]
+)
     app.add_handler(conv)
-    print("\u2705 Basketo Bot is running...")
+    print("✅ Basketo Bot is running...")
     app.run_polling()
