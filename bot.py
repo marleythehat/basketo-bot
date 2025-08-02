@@ -144,7 +144,18 @@ async def handle_view_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CATEGORY
 
 async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.message.text.lower()
+    text = update.message.text.strip()
+
+    # 🔙 Back to categories
+    if text == "🔙 Back":
+        return await show_categories(update, context)
+
+    # 🔁 Retry search
+    if text == "🔁 Retry":
+        await update.message.reply_text("🔎 Enter item name to search:")
+        return SEARCH
+
+    query = text.lower()
     results = []
 
     for cat, items in categories.items():
@@ -160,10 +171,15 @@ async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🔍 Select an item to add to cart:",
             reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True)
         )
-        return ITEM  # Reuse existing flow
+        return ITEM
     else:
-        await update.message.reply_text("❌ No matching items found.")
-        return MAIN_MENU
+        await update.message.reply_text(
+            "❌ No matching items found.\n\nTry again or go back:",
+            reply_markup=ReplyKeyboardMarkup([
+                ["🔁 Retry", "🔙 Back"]
+            ], resize_keyboard=True)
+        )
+        return SEARCH
 
 async def handle_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
