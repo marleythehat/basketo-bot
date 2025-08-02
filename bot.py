@@ -34,17 +34,17 @@ def get_main_menu():
     ], resize_keyboard=True)
 
 def get_category_menu():
-    btns = []
-    row = []
-    for i, cat in enumerate(categories.keys()):
-        row.append(cat)
-        if len(row) == 2:
-            btns.append(row)
-            row = []
-    if row:
-        btns.append(row)
-    btns.append(["🛒 View Cart"])
+    btns = [
+        list(categories.keys())[0:2],
+        list(categories.keys())[2:4],
+        list(categories.keys())[4:6],
+        list(categories.keys())[6:8],
+    ]
+    
+    # Add last row with Cart, Search, and Back
+    btns.append(["🛒 View Cart", "🔍 Search"])
     btns.append(["🔙 Back"])
+    
     return ReplyKeyboardMarkup(btns, resize_keyboard=True)
 
 def get_items_menu(cat):
@@ -90,6 +90,10 @@ async def handle_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == "🔙 Back":
         return await start(update, context)
+    
+    if text == "🔍 Search":
+     await update.message.reply_text("🔎 Enter item name to search:")
+    return SEARCH
 
     if text == "🛒 View Cart":
         return await handle_view_cart(update, context)
