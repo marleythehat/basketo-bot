@@ -55,7 +55,7 @@ def get_items_menu(cat):
 
 def get_quantity_menu(cat, item):
     options = categories[cat][item]
-    btns = [[f"{qty} ₹{price}" for qty, price in options.items()]]
+    btns = [[f"{qty} ₹{price}"] for qty, price in options.items()]
     btns.append(["🔙 Back"])
     return ReplyKeyboardMarkup(btns, resize_keyboard=True)
 
