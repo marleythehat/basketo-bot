@@ -136,29 +136,55 @@ async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     results = []
 
     for cat, items in categories.items():
-        for item_name, quantities in items.items():
+        for item_name in items:
             if query in item_name.lower():
-                q_text = ", ".join([f"{q} ₹{p}" for q, p in quantities.items()])
-                results.append(f"{item_name} ({cat}): {q_text}")
+                results.append((cat, item_name))
 
     if results:
-        await update.message.reply_text("🔍 *Search Results:*\n\n" + "\n".join(results), parse_mode="Markdown")
+        context.user_data["search_results"] = results
+        buttons = [[item] for _, item in results]
+        buttons.append(["🔙 Cancel"])
+        await update.message.reply_text(
+            "🔍 Select an item to add to cart:",
+            reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+        )
+        return ITEM  # Reuse existing flow
     else:
         await update.message.reply_text("❌ No matching items found.")
-
-    return MAIN_MENU
+        return MAIN_MENU
 
 async def handle_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-    if text == "🔙 Back":
+
+    if text == "🔙 Back" or text == "🔙 Cancel":
         return await show_categories(update, context)
-    category = context.user_data["category"]
-    if text not in categories[category]:
+
+    category = context.user_data.get("category")
+    search_results = context.user_data.get("search_results")
+
+    # 🔍 If user selected an item from search results
+    if search_results:
+        for cat, item in search_results:
+            if item == text:
+                context.user_data["category"] = cat
+                context.user_data["item"] = item
+                context.user_data["search_results"] = None  # Clear after use
+                await update.message.reply_text(
+                    f"Select quantity for {item}:",
+                    reply_markup=get_quantity_menu(cat, item)
+                )
+                return QUANTITY
+
+    # 🛒 If user is browsing through categories
+    if not category or text not in categories[category]:
         await update.message.reply_text("❌ Invalid item.")
         return ITEM
+
     context.user_data["item"] = text
     await update.message.reply_text(
-        f"Select quantity for {text}:", reply_markup=get_quantity_menu(category, text))
+        f"Select quantity for {text}:",
+        reply_markup=get_quantity_menu(category, text)
+    )
     return QUANTITY
 
 async def handle_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE):
