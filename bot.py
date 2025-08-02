@@ -90,10 +90,6 @@ async def handle_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == "🔙 Back":
         return await start(update, context)
-    
-    if text == "🔍 Search":
-     await update.message.reply_text("🔎 Enter item name to search:")
-    return SEARCH
 
     if text == "🛒 View Cart":
         return await handle_view_cart(update, context)
@@ -104,12 +100,18 @@ async def handle_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "🗑 Remove Items":
         return await remove_item_prompt(update, context)
 
+    if text == "🔍 Search":
+        await update.message.reply_text("🔎 Enter item name to search:")
+        return SEARCH
+
     if text not in categories:
         await update.message.reply_text("❌ Invalid category.")
         return CATEGORY
 
     context.user_data["category"] = text
-    await update.message.reply_text(f"Choose an item in {text}:", reply_markup=get_items_menu(text))
+    await update.message.reply_text(
+        f"Choose an item in {text}:", reply_markup=get_items_menu(text)
+    )
     return ITEM
 
 async def handle_view_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
