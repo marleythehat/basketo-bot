@@ -103,6 +103,9 @@ async def handle_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "🔍 Search":
         await update.message.reply_text("🔎 Enter item name to search:")
         return SEARCH
+    
+    if text == "➕ Add More Items":
+     return await show_categories(update, context)
 
     if text not in categories:
         await update.message.reply_text("❌ Invalid category.")
@@ -121,20 +124,23 @@ async def handle_view_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not cart:
         await update.message.reply_text("🛒 Your cart is empty.")
     else:
-        msg = "🛒 Your Cart:\n"
+        msg = "🛒 *Your Cart:*\n"
         total = 0
         for item, qty, price in cart:
             msg += f"- {item} ({qty}) ₹{price}\n"
             total += price
         msg += f"\n*Total:* ₹{total}"
+
         await update.message.reply_text(
-    msg,
-    parse_mode="Markdown",
-    reply_markup=ReplyKeyboardMarkup([
-        ["✅ Checkout"],
-        ["🗑 Remove Items", "🔙 Back"]
-    ], resize_keyboard=True)
-)
+            msg,
+            parse_mode="Markdown",
+            reply_markup=ReplyKeyboardMarkup([
+                ["✅ Checkout"],
+                ["🗑 Remove Items", "➕ Add More Items"],
+                ["🔙 Back"]
+            ], resize_keyboard=True)
+        )
+
     return CATEGORY
 
 async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
