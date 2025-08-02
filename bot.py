@@ -25,11 +25,11 @@ staff_index = 0
 with open("items.json", "r", encoding="utf-8") as f:
     categories = json.load(f)
 
-MAIN_MENU, CATEGORY, ITEM, QUANTITY, CHECKOUT_NAME, CHECKOUT_ADDRESS, CHECKOUT_PHONE, CHECKOUT_PAYMENT, REMOVE_ITEM = range(9)
+MAIN_MENU, CATEGORY, ITEM, QUANTITY, CHECKOUT_NAME, CHECKOUT_ADDRESS, CHECKOUT_PHONE, CHECKOUT_PAYMENT, REMOVE_ITEM, SEARCH = range(10)
 
 def get_main_menu():
     return ReplyKeyboardMarkup([
-        ["🍭 Shop Now"],
+        ["🍭 Shop Now", "🔍 Search"],
         ["ℹ About Us", "📞 Contact Us"]
     ], resize_keyboard=True)
 
@@ -72,6 +72,9 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "🍭 Shop Now":
         return await show_categories(update, context)
+    elif text == "🔍 Search":
+     await update.message.reply_text("🔎 Enter item name to search:")
+     return SEARCH
     elif text == "ℹ About Us":
         await update.message.reply_text("🏪 Basketo is your trusted Kerala-based grocery service!")
     elif text == "📞 Contact Us":
@@ -127,6 +130,23 @@ async def handle_view_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ], resize_keyboard=True)
 )
     return CATEGORY
+
+async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.message.text.lower()
+    results = []
+
+    for cat, items in categories.items():
+        for item_name, quantities in items.items():
+            if query in item_name.lower():
+                q_text = ", ".join([f"{q} ₹{p}" for q, p in quantities.items()])
+                results.append(f"{item_name} ({cat}): {q_text}")
+
+    if results:
+        await update.message.reply_text("🔍 *Search Results:*\n\n" + "\n".join(results), parse_mode="Markdown")
+    else:
+        await update.message.reply_text("❌ No matching items found.")
+
+    return MAIN_MENU
 
 async def handle_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
@@ -270,6 +290,7 @@ if __name__ == "__main__":
     entry_points=[CommandHandler("start", start)],
     states={
         MAIN_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_main_menu)],
+        SEARCH: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_search)],
         CATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_category)],
         ITEM: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_item)],
         QUANTITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_quantity)],
