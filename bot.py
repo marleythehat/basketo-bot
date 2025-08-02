@@ -34,12 +34,17 @@ def get_main_menu():
     ], resize_keyboard=True)
 
 def get_category_menu():
-    btns = [
-        list(categories.keys())[0:2],
-        list(categories.keys())[2:4],
-        [list(categories.keys())[4], "🛒 View Cart"],
-        ["🔙 Back"]
-    ]
+    btns = []
+    row = []
+    for i, cat in enumerate(categories.keys()):
+        row.append(cat)
+        if len(row) == 2:
+            btns.append(row)
+            row = []
+    if row:
+        btns.append(row)
+    btns.append(["🛒 View Cart"])
+    btns.append(["🔙 Back"])
     return ReplyKeyboardMarkup(btns, resize_keyboard=True)
 
 def get_items_menu(cat):
