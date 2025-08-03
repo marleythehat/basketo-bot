@@ -274,36 +274,42 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def get_address(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["address"] = update.message.text
     await update.message.reply_text(
-    "📞 Please share your phone number by tapping the button below:",
-    reply_markup=ReplyKeyboardMarkup(
-        [[KeyboardButton("📱 Share Contact", request_contact=True)]],
-        resize_keyboard=True,
-        one_time_keyboard=True
+        "📍 Please share your location by tapping the button below:",
+        reply_markup=ReplyKeyboardMarkup(
+            [[KeyboardButton("📍 Share Location", request_location=True)]],
+            resize_keyboard=True,
+            one_time_keyboard=True
+        )
     )
-)
-    return CHECKOUT_PHONE
+    return CHECKOUT_PHONE  # continue to phone step after location
 
 async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.contact:
         phone = update.message.contact.phone_number
         context.user_data["phone"] = phone
-        await update.message.reply_text(
-            "💰 Select payment method:",
-            reply_markup=ReplyKeyboardMarkup([["PayNow", "COD"]], resize_keyboard=True)
-        )
-        return CHECKOUT_PAYMENT
     else:
         await update.message.reply_text(
-            "⚠️ Please *tap the button* to share your contact number using the prompt below.",
+            "⚠️ Please *tap the button* to share your contact number.",
             parse_mode="Markdown"
         )
         return CHECKOUT_PHONE
+
+    # Optional: save location if provided
+    if update.message.location:
+        location = update.message.location
+        context.user_data["location"] = f"{location.latitude},{location.longitude}"
+
+    await update.message.reply_text(
+        "💰 Select payment method:",
+        reply_markup=ReplyKeyboardMarkup([["PayNow", "COD"]], resize_keyboard=True)
+    )
+    return CHECKOUT_PAYMENT
 
 async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global order_counter, staff_index
     payment = update.message.text
 
-    # 👇 Check for "PayNow" and block it
+    # 👇 Reject PayNow (since no online payment supported)
     if payment == "PayNow":
         await update.message.reply_text(
             "❌ We're not accepting online payments right now.\n\nPlease choose *COD* to continue.",
@@ -319,20 +325,36 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     order_id = f"ORD-{order_counter:04d}"
     order_counter += 1
 
+    # 🗺 Optional location if shared
+    location_url = ""
+    if "location" in context.user_data:
+        latlong = context.user_data["location"]
+        location_url = f"\n📌 [Location](https://www.google.com/maps?q={latlong})"
+
+    # 🧾 Summary message
     total = sum(price for _, _, price in items)
-    summary = f"🧾 Order ID: {order_id}\n👤 {name}\n📞 [ {phone}](tel:{phone})\n📍 {address}\n💰 Payment: {payment}\n\n🛒 Items:\n"
+    summary = (
+        f"🧾 Order ID: {order_id}\n"
+        f"👤 {name}\n"
+        f"📞 [{phone}](tel:{phone})\n"
+        f"📍 {address}{location_url}\n"
+        f"💰 Payment: {payment}\n\n"
+        f"🛒 Items:\n"
+    )
     for item, qty, price in items:
-     summary += f"- {item} ({qty}) ₹{price}\n"
+        summary += f"- {item} ({qty}) ₹{price}\n"
     summary += f"\n*Total:* ₹{total}"
 
-    # Assign to staff
+    # 👨‍🍳 Assign to staff
     assigned_staff = STAFF_IDS[staff_index % len(STAFF_IDS)]
     staff_index += 1
 
+    # 📩 Notify staff/admin/group
     await context.bot.send_message(chat_id=assigned_staff, text=f"📦 New Order Assigned!\n{summary}", parse_mode="Markdown")
     await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ Order Received and Assigned to Staff ID {assigned_staff}\n{summary}", parse_mode="Markdown")
     await context.bot.send_message(chat_id=GROUP_ID, text=f"📢 New Order:\n{summary}\n👤 Assigned Staff ID: {assigned_staff}", parse_mode="Markdown")
 
+    # ✅ Confirm to user
     await update.message.reply_text("🎉 Your order has been placed! You'll receive a call soon.", reply_markup=get_main_menu())
     user_cart[update.effective_chat.id] = []
     return MAIN_MENU
