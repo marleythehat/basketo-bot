@@ -302,7 +302,13 @@ async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return CHECKOUT_PHONE
 
     elif update.message.contact:
-        context.user_data["phone"] = update.message.contact.phone_number
+        phone = update.message.contact.phone_number
+
+        # Add "+" if missing
+        if not phone.startswith("+"):
+            phone = "+" + phone.lstrip("+")
+
+        context.user_data["phone"] = phone
 
         # Ask for payment method
         await update.message.reply_text(
