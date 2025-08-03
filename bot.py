@@ -274,51 +274,54 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def get_address(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["address"] = update.message.text
     await update.message.reply_text(
-        "📍 Please share your location by tapping the button below:",
+        "📍 Please share your *location* by tapping the button below:",
         reply_markup=ReplyKeyboardMarkup(
             [[KeyboardButton("📍 Share Location", request_location=True)]],
             resize_keyboard=True,
             one_time_keyboard=True
-        )
+        ),
+        parse_mode="Markdown"
     )
-    return CHECKOUT_PHONE  # We'll handle both location and phone in next step
+    return CHECKOUT_PHONE
 
 async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Store location if user shared it
     if update.message.location:
-        # Save location as latitude,longitude string
-        loc = update.message.location
-        context.user_data["location"] = f"{loc.latitude},{loc.longitude}"
+        context.user_data["location"] = update.message.location
 
-        # Ask for phone after location
         await update.message.reply_text(
-            "📞 Please share your phone number by tapping the button below:",
+            "📞 Please *share your phone number* by tapping the button below:",
             reply_markup=ReplyKeyboardMarkup(
                 [[KeyboardButton("📱 Share Contact", request_contact=True)]],
                 resize_keyboard=True,
                 one_time_keyboard=True
-            )
+            ),
+            parse_mode="Markdown"
         )
         return CHECKOUT_PHONE
 
-    elif update.message.contact:
-        # Save phone number
-        context.user_data["phone"] = update.message.contact.phone_number
-
+    # Store phone number
+    if update.message.contact:
+        phone = update.message.contact.phone_number
+        context.user_data["phone"] = phone
         await update.message.reply_text(
             "💰 Select payment method:",
             reply_markup=ReplyKeyboardMarkup([["PayNow", "COD"]], resize_keyboard=True)
         )
         return CHECKOUT_PAYMENT
 
-    else:
-        await update.message.reply_text("⚠️ Please tap the button to share your location or phone.")
-        return CHECKOUT_PHONE
+    await update.message.reply_text(
+        "⚠️ Please *use the button* to share your phone number.",
+        parse_mode="Markdown"
+    )
+    return CHECKOUT_PHONE
 
 async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global order_counter, staff_index
+
     payment = update.message.text
 
-    # Handle PayNow option
+    # Block "PayNow" option
     if payment == "PayNow":
         await update.message.reply_text(
             "❌ We're not accepting online payments right now.\n\nPlease choose *COD* to continue.",
@@ -327,54 +330,50 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return CHECKOUT_PAYMENT
 
-    # Get customer data
+    # Retrieve customer details
     name = context.user_data.get("name", "N/A")
     address = context.user_data.get("address", "N/A")
     phone = context.user_data.get("phone", "N/A")
-    location = context.user_data.get("location", None)
+    location = context.user_data.get("location")  # May be None
+
     items = user_cart.get(update.effective_chat.id, [])
+    if not items:
+        await update.message.reply_text("❌ Your cart is empty.")
+        return MAIN_MENU
+
+    # Create order summary
     order_id = f"ORD-{order_counter:04d}"
     order_counter += 1
 
-    # Calculate total and build item list
     total = sum(price for _, _, price in items)
-    item_lines = "\n".join([f"- {item} ({qty}) ₹{price}" for item, qty, price in items])
+    summary = f"🧾 *Order ID:* {order_id}\n👤 *Name:* {name}\n📞 *Phone:* [{phone}](tel:{phone})\n📍 *Address:* {address}"
 
-    # Build summary message
-    summary = (
-        f"🧾 *Order ID:* {order_id}\n"
-        f"👤 *Name:* {name}\n"
-        f"📞 *Phone:* [{phone}](tel:{phone})\n"
-        f"📍 *Address:* {address}\n"
-    )
-
-    # If location is available, add map link
+    # Add location link if available
     if location:
         lat = location.latitude
         lon = location.longitude
-        summary += f"📌 [📍 Google Maps](https://www.google.com/maps?q={lat},{lon})\n"
+        maps_link = f"https://maps.google.com/?q={lat},{lon}"
+        summary += f"\n📌 [View Location]({maps_link})"
 
-    summary += (
-        f"💰 *Payment:* {payment}\n\n"
-        f"🛒 *Items:*\n{item_lines}\n\n"
-        f"*Total:* ₹{total}"
-    )
+    summary += f"\n💰 *Payment:* {payment}\n\n🛒 *Items:*\n"
+    for item, qty, price in items:
+        summary += f"- {item} ({qty}) ₹{price}\n"
+    summary += f"\n*Total:* ₹{total}"
 
-    # Assign staff member
+    # Assign to staff
     assigned_staff = STAFF_IDS[staff_index % len(STAFF_IDS)]
     staff_index += 1
 
-    # Send order to staff, admin, group
-    await context.bot.send_message(chat_id=assigned_staff, text=f"📦 *New Order Assigned!*\n{summary}", parse_mode="Markdown")
-    await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ *Order Received and Assigned to Staff ID {assigned_staff}*\n{summary}", parse_mode="Markdown")
-    await context.bot.send_message(chat_id=GROUP_ID, text=f"📢 *New Order:*\n{summary}\n👤 Assigned Staff ID: {assigned_staff}", parse_mode="Markdown")
+    # Send to Staff, Admin, and Group
+    await context.bot.send_message(chat_id=assigned_staff, text=f"📦 New Order Assigned!\n\n{summary}", parse_mode="Markdown")
+    await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ Order Received:\n\n{summary}", parse_mode="Markdown")
+    await context.bot.send_message(chat_id=GROUP_ID, text=f"📢 New Order:\n\n{summary}\n👤 Assigned Staff ID: {assigned_staff}", parse_mode="Markdown")
 
-    # Confirm to customer
-    await update.message.reply_text(
-        "🎉 Your order has been placed! You'll receive a call soon.",
-        reply_markup=get_main_menu()
-    )
-    user_cart[update.effective_chat.id] = []  # Clear cart
+    # Notify Customer
+    await update.message.reply_text("🎉 Your order has been placed! You'll receive a call soon.", reply_markup=get_main_menu())
+
+    # Clear cart
+    user_cart[update.effective_chat.id] = []
     return MAIN_MENU
 
 if __name__ == "__main__":
