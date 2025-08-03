@@ -341,7 +341,7 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     summary = (
         f"🧾 *Order ID:* {order_id}\n"
         f"👤 *Customer:* {name}\n"
-        f"📞 [ {phone}](tel:{phone})\n"
+        f"📞 [{phone}](tel:{phone})\n"
         f"📍 *Address:* {address}\n"
         f"📌 *Location:* https://www.google.com/maps?q={location}\n"
         f"💰 *Payment:* {payment}\n\n"
