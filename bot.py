@@ -321,7 +321,6 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     payment = update.message.text
 
-    # Block "PayNow" option
     if payment == "PayNow":
         await update.message.reply_text(
             "❌ We're not accepting online payments right now.\n\nPlease choose *COD* to continue.",
@@ -330,49 +329,56 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return CHECKOUT_PAYMENT
 
-    # Retrieve customer details
     name = context.user_data.get("name", "N/A")
     address = context.user_data.get("address", "N/A")
     phone = context.user_data.get("phone", "N/A")
-    location = context.user_data.get("location")  # May be None
-
+    location = context.user_data.get("location")  # Can be None
     items = user_cart.get(update.effective_chat.id, [])
+
     if not items:
         await update.message.reply_text("❌ Your cart is empty.")
         return MAIN_MENU
 
-    # Create order summary
     order_id = f"ORD-{order_counter:04d}"
     order_counter += 1
 
     total = sum(price for _, _, price in items)
-    summary = f"🧾 *Order ID:* {order_id}\n👤 *Name:* {name}\n📞 *Phone:* [{phone}](tel:{phone})\n📍 *Address:* {address}"
 
-    # Add location link if available
+    # --- Escape characters safely for Markdown ---
+    def escape(text):
+        return text.replace("-", "\\-").replace(".", "\\.").replace("(", "\\(").replace(")", "\\)").replace("!", "\\!")
+
+    # --- Summary Start ---
+    summary = f"*🧾 Order ID:* {escape(order_id)}\n"
+    summary += f"*👤 Name:* {escape(name)}\n"
+    summary += f"*📞 Phone:* [{phone}](tel:{phone})\n"
+    summary += f"*📍 Address:* {escape(address)}\n"
+
+    # --- Add location if shared ---
     if location:
         lat = location.latitude
         lon = location.longitude
-        maps_link = f"https://maps.google.com/?q={lat},{lon}"
-        summary += f"\n📌 [View Location]({maps_link})"
+        maps_url = f"https://maps.google.com/?q={lat},{lon}"
+        summary += f"[📌 View Location]({maps_url})\n"
 
-    summary += f"\n💰 *Payment:* {payment}\n\n🛒 *Items:*\n"
+    summary += f"*💰 Payment:* {escape(payment)}\n\n"
+    summary += "*🛒 Items:*\n"
+
     for item, qty, price in items:
-        summary += f"- {item} ({qty}) ₹{price}\n"
+        summary += f"- {escape(item)} ({escape(qty)}) ₹{price}\n"
+
     summary += f"\n*Total:* ₹{total}"
 
-    # Assign to staff
+    # Assign staff
     assigned_staff = STAFF_IDS[staff_index % len(STAFF_IDS)]
     staff_index += 1
 
-    # Send to Staff, Admin, and Group
-    await context.bot.send_message(chat_id=assigned_staff, text=f"📦 New Order Assigned!\n\n{summary}", parse_mode="Markdown")
-    await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ Order Received:\n\n{summary}", parse_mode="Markdown")
-    await context.bot.send_message(chat_id=GROUP_ID, text=f"📢 New Order:\n\n{summary}\n👤 Assigned Staff ID: {assigned_staff}", parse_mode="Markdown")
+    # Send order summary to Admin, Staff, and Group
+    await context.bot.send_message(chat_id=assigned_staff, text=f"📦 New Order Assigned!\n\n{summary}", parse_mode="MarkdownV2")
+    await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ Order Received:\n\n{summary}", parse_mode="MarkdownV2")
+    await context.bot.send_message(chat_id=GROUP_ID, text=f"📢 New Order:\n\n{summary}\n👤 Assigned Staff ID: {assigned_staff}", parse_mode="MarkdownV2")
 
-    # Notify Customer
     await update.message.reply_text("🎉 Your order has been placed! You'll receive a call soon.", reply_markup=get_main_menu())
-
-    # Clear cart
     user_cart[update.effective_chat.id] = []
     return MAIN_MENU
 
