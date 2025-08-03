@@ -273,47 +273,48 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_address(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["address"] = update.message.text
-    if update.message.location:
-        context.user_data["location"] = update.message.location
 
+    # Ask for location
     await update.message.reply_text(
-        "📞 Please share your phone number by tapping the button below:",
+        "📍 Please share your *exact location* by tapping the button below:",
         reply_markup=ReplyKeyboardMarkup(
-            [[KeyboardButton("📱 Share Contact", request_contact=True)]],
+            [[KeyboardButton("📍 Share Location", request_location=True)]],
             resize_keyboard=True,
             one_time_keyboard=True
-        )
+        ),
+        parse_mode="Markdown"
     )
-    return CHECKOUT_PHONE
+    return CHECKOUT_PHONE  # Temporarily use CHECKOUT_PHONE to capture location
 
 async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Store location if user shared it
+    # Save location if shared
     if update.message.location:
         context.user_data["location"] = update.message.location
 
+        # Now ask for phone number
         await update.message.reply_text(
-            "📞 Please *share your phone number* by tapping the button below:",
+            "📞 Please share your phone number by tapping the button below:",
             reply_markup=ReplyKeyboardMarkup(
                 [[KeyboardButton("📱 Share Contact", request_contact=True)]],
                 resize_keyboard=True,
                 one_time_keyboard=True
-            ),
-            parse_mode="Markdown"
+            )
         )
-        return CHECKOUT_PHONE
+        return CHECKOUT_PHONE  # Continue waiting for phone number
 
-    # Store phone number
+    # Save phone if shared
     if update.message.contact:
-        phone = update.message.contact.phone_number
-        context.user_data["phone"] = phone
+        context.user_data["phone"] = update.message.contact.phone_number
+
         await update.message.reply_text(
             "💰 Select payment method:",
-            reply_markup=ReplyKeyboardMarkup([["PayNow", "COD"]], resize_keyboard=True)
+            reply_markup=ReplyKeyboardMarkup([["COD"]], resize_keyboard=True)
         )
         return CHECKOUT_PAYMENT
 
+    # Fallback warning
     await update.message.reply_text(
-        "⚠️ Please *use the button* to share your phone number.",
+        "⚠️ Please *tap the button* to share your contact number and location.",
         parse_mode="Markdown"
     )
     return CHECKOUT_PHONE
