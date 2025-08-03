@@ -344,7 +344,7 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Build order summary
     summary = f"🧾 *Order ID:* `{order_id}`\n"
     summary += f"👤 *Name:* {name}\n"
-    summary += f"📞 *Phone:* [{phone}](tel:{phone})\n"
+    summary += f"📞 [{phone}](tel:{phone})\n"
     summary += f"📍 *Address:* {address}\n"
     if location:
         lat = location.latitude
