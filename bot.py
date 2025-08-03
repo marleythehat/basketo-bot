@@ -318,7 +318,7 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global order_counter, staff_index
     payment = update.message.text
 
-    # 👇 Check for "PayNow" and block it
+    # Handle PayNow option
     if payment == "PayNow":
         await update.message.reply_text(
             "❌ We're not accepting online payments right now.\n\nPlease choose *COD* to continue.",
@@ -327,38 +327,54 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return CHECKOUT_PAYMENT
 
-    name = context.user_data.get("name", "")
-    address = context.user_data.get("address", "")
-    phone = context.user_data.get("phone", "")
-    location = context.user_data.get("location")
+    # Get customer data
+    name = context.user_data.get("name", "N/A")
+    address = context.user_data.get("address", "N/A")
+    phone = context.user_data.get("phone", "N/A")
+    location = context.user_data.get("location", None)
     items = user_cart.get(update.effective_chat.id, [])
     order_id = f"ORD-{order_counter:04d}"
     order_counter += 1
 
+    # Calculate total and build item list
     total = sum(price for _, _, price in items)
-    summary = f"🧾 *Order ID:* {order_id}\n"
-    summary += f"👤 *Name:* {name}\n"
-    summary += f"📞 *Phone:* [{phone}](tel:{phone})\n"
-    summary += f"📍 *Address:* {address}\n"
-    if location:
-        lat, lon = location.latitude, location.longitude
-        maps_url = f"https://maps.google.com/?q={lat},{lon}"
-        summary += f"🌍 [View Location]({maps_url})\n"
-    summary += f"💰 *Payment:* {payment}\n\n🛒 *Items:*\n"
-    for item, qty, price in items:
-        summary += f"- {item} ({qty}) ₹{price}\n"
-    summary += f"\n*Total:* ₹{total}"
+    item_lines = "\n".join([f"- {item} ({qty}) ₹{price}" for item, qty, price in items])
 
-    # Assign to staff
+    # Build summary message
+    summary = (
+        f"🧾 *Order ID:* {order_id}\n"
+        f"👤 *Name:* {name}\n"
+        f"📞 *Phone:* [{phone}](tel:{phone})\n"
+        f"📍 *Address:* {address}\n"
+    )
+
+    # If location is available, add map link
+    if location:
+        lat = location.latitude
+        lon = location.longitude
+        summary += f"📌 [📍 Google Maps](https://www.google.com/maps?q={lat},{lon})\n"
+
+    summary += (
+        f"💰 *Payment:* {payment}\n\n"
+        f"🛒 *Items:*\n{item_lines}\n\n"
+        f"*Total:* ₹{total}"
+    )
+
+    # Assign staff member
     assigned_staff = STAFF_IDS[staff_index % len(STAFF_IDS)]
     staff_index += 1
 
+    # Send order to staff, admin, group
     await context.bot.send_message(chat_id=assigned_staff, text=f"📦 *New Order Assigned!*\n{summary}", parse_mode="Markdown")
-    await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ *Order Received and Assigned to Staff ID* `{assigned_staff}`\n{summary}", parse_mode="Markdown")
-    await context.bot.send_message(chat_id=GROUP_ID, text=f"📢 *New Order:*\n{summary}\n👤 *Assigned Staff ID:* `{assigned_staff}`", parse_mode="Markdown")
+    await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ *Order Received and Assigned to Staff ID {assigned_staff}*\n{summary}", parse_mode="Markdown")
+    await context.bot.send_message(chat_id=GROUP_ID, text=f"📢 *New Order:*\n{summary}\n👤 Assigned Staff ID: {assigned_staff}", parse_mode="Markdown")
 
-    await update.message.reply_text("🎉 Your order has been placed! You'll receive a call soon.", reply_markup=get_main_menu())
-    user_cart[update.effective_chat.id] = []
+    # Confirm to customer
+    await update.message.reply_text(
+        "🎉 Your order has been placed! You'll receive a call soon.",
+        reply_markup=get_main_menu()
+    )
+    user_cart[update.effective_chat.id] = []  # Clear cart
     return MAIN_MENU
 
 if __name__ == "__main__":
