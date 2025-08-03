@@ -318,7 +318,7 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global order_counter, staff_index
     payment = update.message.text
 
-    # Reject "PayNow"
+    # Block PayNow
     if payment == "PayNow":
         await update.message.reply_text(
             "❌ We're not accepting online payments right now.\n\nPlease choose *COD* to continue.",
@@ -330,8 +330,9 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = context.user_data["name"]
     address = context.user_data["address"]
     phone = context.user_data["phone"]
+    location = context.user_data.get("location")  # may be None
 
-    # ✅ Ensure phone is in clickable format
+    # Ensure phone has +91
     if not phone.startswith("+"):
         phone = "+91" + phone
 
@@ -340,33 +341,40 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     order_counter += 1
 
     total = sum(price for _, _, price in items)
-    
+
+    # Start order summary
     summary = (
         f"🧾 *Order ID:* {order_id}\n"
         f"👤 *Customer:* {name}\n"
         f"📞 [{phone}](tel:{phone})\n"
         f"📍 *Address:* {address}\n"
-        f"💰 *Payment:* {payment}\n\n"
-        f"🛒 *Items:*\n"
     )
+
+    # If location was shared, add link
+    if location:
+        lat, lon = location["latitude"], location["longitude"]
+        map_link = f"https://maps.google.com/?q={lat},{lon}"
+        summary += f"🌍 [View Location]({map_link})\n"
+
+    summary += f"💰 *Payment:* {payment}\n\n🛒 *Items:*\n"
 
     for item, qty, price in items:
         summary += f"- {item} ({qty}) ₹{price}\n"
-    
+
     summary += f"\n*Total:* ₹{total}"
 
-    # Assign to staff
+    # Assign staff
     assigned_staff = STAFF_IDS[staff_index % len(STAFF_IDS)]
     staff_index += 1
 
-    # Send to staff/admin/group
+    # Send order
     await context.bot.send_message(chat_id=assigned_staff, text=f"📦 *New Order Assigned!*\n{summary}", parse_mode="Markdown")
     await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ *Order Received and Assigned to Staff ID {assigned_staff}*\n{summary}", parse_mode="Markdown")
     await context.bot.send_message(chat_id=GROUP_ID, text=f"📢 *New Order:*\n{summary}\n👤 *Assigned Staff ID:* {assigned_staff}", parse_mode="Markdown")
 
-    # Notify user
+    # Confirm with customer
     await update.message.reply_text("🎉 Your order has been placed! You'll receive a call soon.", reply_markup=get_main_menu())
-    
+
     user_cart[update.effective_chat.id] = []
     return MAIN_MENU
 
