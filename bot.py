@@ -1,5 +1,6 @@
 import os
 import json
+from datetime import datetime, time as dt_time
 import re
 from dotenv import load_dotenv
 from telegram import (
@@ -10,6 +11,13 @@ from telegram.ext import (
 )
 
 load_dotenv()
+
+def is_prebook_time():
+    """Check if current time is between 7 PM and 9 PM."""
+    now = datetime.now().time()
+    start = dt_time(19, 0)  # 7 PM
+    end = dt_time(21, 0)    # 9 PM
+    return start <= now <= end
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
@@ -196,6 +204,14 @@ async def handle_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if search_results:
         for cat, item in search_results:
             if item == text:
+                # ✅ Check pre-book time restriction for fish/meat
+                if cat in ["🐟 Fish", "🍖 Meat"] and not is_prebook_time():
+                    await update.message.reply_text(
+                        "⚠️ These items are available for booking only between 7–9 PM.\n"
+                        "Please check back at that time to place your order."
+                    )
+                    return ITEM
+
                 context.user_data["category"] = cat
                 context.user_data["item"] = item
                 context.user_data["search_results"] = None  # Clear after use
@@ -210,12 +226,21 @@ async def handle_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Invalid item.")
         return ITEM
 
+    # ✅ Check pre-book time restriction for fish/meat
+    if category in ["🐟 Fish", "🍖 Meat"] and not is_prebook_time():
+        await update.message.reply_text(
+            "⚠️ These items are available for booking only between 7–9 PM.\n"
+            "Please check back at that time to place your order."
+        )
+        return ITEM
+
     context.user_data["item"] = text
     await update.message.reply_text(
         f"Select quantity for {text}:",
         reply_markup=get_quantity_menu(category, text)
     )
     return QUANTITY
+
 
 async def handle_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
