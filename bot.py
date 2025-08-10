@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from dotenv import load_dotenv
 from telegram import (
     Update, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
@@ -14,6 +15,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 STAFF_IDS = list(map(int, os.getenv("STAFF_IDS").split(",")))
 GROUP_ID = int(os.getenv("GROUP_ID"))
+allowed_pincodes = ["670694"]  # Kannur
 
 # Global memory (can be replaced with file/database)
 user_state = {}
@@ -25,7 +27,7 @@ staff_index = 0
 with open("items.json", "r", encoding="utf-8") as f:
     categories = json.load(f)
 
-MAIN_MENU, CATEGORY, ITEM, QUANTITY, CHECKOUT_NAME, CHECKOUT_ADDRESS, CHECKOUT_PHONE, CHECKOUT_PAYMENT, REMOVE_ITEM, SEARCH = range(10)
+MAIN_MENU, CATEGORY, ITEM, QUANTITY, CHECKOUT_NAME, CHECKOUT_ADDRESS, CHECKOUT_PINCODE, CHECKOUT_PHONE, CHECKOUT_PAYMENT, REMOVE_ITEM, SEARCH = range(11)
 
 def get_main_menu():
     return ReplyKeyboardMarkup([
@@ -271,10 +273,44 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🏠 Enter your delivery address:")
     return CHECKOUT_ADDRESS
 
+# ✅ Add this at the top of bot.py (after imports and env variables)
+ALLOWED_PINCODES = ["670694"]  # Only deliver here
+
 async def get_address(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["address"] = update.message.text
 
-    # Ask for location (optional)
+    await update.message.reply_text(
+        "📮 Please enter your *6-digit pincode*",
+        parse_mode="Markdown"
+    )
+    return CHECKOUT_PINCODE
+
+async def get_pincode(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+
+    # Allow user to go back to address entry
+    if text == "🔙 Back":
+        await update.message.reply_text("🏠 Enter your delivery address:")
+        return CHECKOUT_ADDRESS
+
+    # Validate pincode format
+    if not re.fullmatch(r"\d{6}", text):
+        await update.message.reply_text(
+            "⚠️ Please enter a valid 6-digit pincode (numbers only). Try again"
+        )
+        return CHECKOUT_PINCODE
+
+    # Check if pincode is allowed
+    if text not in ALLOWED_PINCODES:
+        await update.message.reply_text(
+            f"🚫We’re not in your neighborhood yet, but we’re on our way!\n"
+            "Please enter a serviceable pincode"
+        )
+        return CHECKOUT_PINCODE  # Stay here so user can retry
+
+    context.user_data["pincode"] = text
+
+    # Proceed to location request
     await update.message.reply_text(
         "📍 If possible, please *share your exact location* using the button below:",
         reply_markup=ReplyKeyboardMarkup(
@@ -339,6 +375,7 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Retrieve user details
     name = context.user_data["name"]
     address = context.user_data["address"]
+    pincode = context.user_data.get("pincode", "Not provided")
     phone = context.user_data.get("phone", "Not provided")
     location = context.user_data.get("location")
     items = user_cart[update.effective_chat.id]
@@ -352,6 +389,8 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     summary += f"👤 *Name:* {name}\n"
     summary += f"📞 [{phone}](tel:{phone})\n"
     summary += f"📍 *Address:* {address}\n"
+    pincode = context.user_data.get("pincode", "Not provided")
+    summary += f"📮 *Pincode:* {pincode}\n"
     if location:
         lat = location.latitude
         lon = location.longitude
@@ -394,6 +433,7 @@ if __name__ == "__main__":
         QUANTITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_quantity)],
         CHECKOUT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
         CHECKOUT_ADDRESS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_address)],
+        CHECKOUT_PINCODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_pincode)],
         CHECKOUT_PHONE: [
     MessageHandler(filters.CONTACT, get_phone),
     MessageHandler(filters.LOCATION, get_phone),
